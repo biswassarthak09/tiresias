@@ -1,0 +1,16 @@
+# AI & Logic
+numpy
+python-dotenv
+nest_asyncio
+
+# Hardware (Conditional Installation)
+# rpi-lgpio is the modern replacement for RPi.GPIO (Required for Pi 5)
+rpi-lgpio; platform_system == "Linux"
+gpiozero
+
+google-genai          # Gemini AI SDK
+edge-tts              # Free High-Quality TTS
+opencv-python         # To extract frames from video
+python-dotenv         # API Key management
+pygame                # To play audio
+nest_asyncio          # Async helper
