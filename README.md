@@ -84,7 +84,6 @@ Edge AI (YOLOv11) detects what’s happening in the scene, and **Gemini 2.5** ex
 
 ## 📊 Data Flow Diagram (Mermaid)
 
-```mermaid
 flowchart LR
     subgraph Hardware
         Cam[Camera] --> RPi[Raspberry Pi 5]
@@ -101,7 +100,6 @@ flowchart LR
     Gemini -->|Scene explanation (text)| TTS[Text-to-Speech Service]
     TTS -->|Audio stream| RPi
     RPi -->|Spoken output| Speaker
-```mermaid
 
 ## 🧮 Summary
 **Edge (Raspberry Pi + Hailo + YOLOv11)**
@@ -119,3 +117,4 @@ People and emotions
 
 Dangers and obstacles
 in a way that’s understandable, timely, and helpful.
+
