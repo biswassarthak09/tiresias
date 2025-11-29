@@ -7,14 +7,16 @@ import asyncio
 import argparse
 import pygame
 import edge_tts
+import time
+
 from PIL import Image
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
 # --- CONFIGURATION ---
-FRAME_INTERVAL = 30       # Take every 30th frame (e.g., 1 frame per sec for 30fps video)
-MAX_FRAMES = 10           # Limit to 10 frames max (to save tokens/latency)
+FRAME_INTERVAL = 90       # Take every 90th frame (every 3 sec @ 30fps)
+MAX_FRAMES = 3            # Limit to 3 frames for ultra-fast mode
 VOICE = "en-US-ChristopherNeural"
 
 # --- SETUP ---
@@ -66,7 +68,7 @@ def extract_nth_frames(video_path, output_folder):
             pil_img = Image.fromarray(rgb_frame)
             
             # 2. Resize if huge (Optional, speeds up upload)
-            pil_img.thumbnail((640, 640)) 
+            pil_img.thumbnail((256, 256)) 
             
             # 3. Save to output folder for user inspection
             filename = f"frame_{count:03d}_(idx_{frame_idx}).jpg"
@@ -86,7 +88,7 @@ def extract_nth_frames(video_path, output_folder):
     
     cap.release()
     print(f"✅ Extracted {len(extracted_images)} frames.")
-    return extracted_images, output_folder
+    return extracted_images
 
 def ask_gemini(pil_images, prompt):
     """Sends the list of images + text to Gemini."""
@@ -111,6 +113,9 @@ async def generate_audio(text, output_file):
 def main():
     # 1. Setup Folders
     input_folder = "inputs"
+
+    # Start the timer
+    start_time = time.perf_counter()
     
     # Create output folder with timestamp
     timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -125,7 +130,7 @@ def main():
         return
 
     # 3. Extract Frames (The "Nth Frame" Logic)
-    images, save_path = extract_nth_frames(video_path, output_folder)
+    images = extract_nth_frames(video_path, output_folder)
     
     if not images:
         print("❌ No frames extracted. Check if video is valid.")
@@ -146,12 +151,15 @@ def main():
     audio_path = os.path.join(output_folder, "speech.mp3")
     asyncio.run(generate_audio(text_resp, audio_path))
     
-    print("▶️ Playing audio...")
-    pygame.mixer.init()
-    pygame.mixer.music.load(audio_path)
+    # print("▶️ Playing audio...")
+    # pygame.mixer.init()
+    # pygame.mixer.music.load(audio_path)
     # pygame.mixer.music.play()
-    while pygame.mixer.music.get_busy():
-        pygame.time.Clock().tick(10)
+    # while pygame.mixer.music.get_busy():
+    #     pygame.time.Clock().tick(10)
+
+    end_time = time.perf_counter()
+    print(f"⏱️ Total runtime: {end_time - start_time:.2f} seconds")
 
 if __name__ == "__main__":
     main()
