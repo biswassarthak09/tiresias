@@ -4,11 +4,13 @@ import time
 import asyncio
 import edge_tts
 import subprocess
+import threading
+import speech_recognition as sr
+
 from PIL import Image
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from ai_assistant import listen_to_mic
 
 # --- CONFIGURATION ---
 RECORD_SECONDS = 10       # Record 10 seconds
@@ -20,6 +22,7 @@ MODEL_NAME = "gemini-2.0-flash"
 load_dotenv()
 API_KEY = os.getenv("GEMINI_API_KEY")
 CLIENT = genai.Client(api_key=API_KEY)
+MIC_INDEX = 1
 
 # --- 1. VIDEO CAPTURE ---
 def capture_live_video(output_path, duration=5):
@@ -36,15 +39,48 @@ def capture_live_video(output_path, duration=5):
         print("❌ Camera Error.")
         return False
 
+# Assuming 'recognizer' and 'MIC_INDEX' are defined globally or passed in
+
+def listen_to_mic(recognizer, MIC_INDEX):
+    """Listen for user question for a fixed duration, optimized for speed."""
+    RECORD_DURATION = 5.0
+    
+    with sr.Microphone(device_index=MIC_INDEX) as source:
+        print(f"🎤 Listening for {RECORD_DURATION} seconds...")
+        
+        recognizer.adjust_for_ambient_noise(source, duration=0.2) 
+        
+        try:
+            audio = recognizer.record(source, duration=RECORD_DURATION)
+            print("⏳ Converting speech to text and sending to API...")
+            
+            text = recognizer.recognize_google(audio, language="en-US") 
+            print(f"🗣️ You said: '{text}'")
+            
+            return text
+            
+        except sr.UnknownValueError:
+            print("❌ Didn't catch that.")
+            return None
+            
+        except sr.RequestError as e:
+            print(f"❌ Mic Error: Could not request results from Google Speech Recognition service; {e}")
+            return None
+            
+        except Exception as e:
+            print(f"❌ Mic Error: An unexpected error occurred: {e}")
+            return None
+
+def listen_thread(audio_text, recognizer, MIC_INDEX):
+    audio_text[0] = listen_to_mic(recognizer, MIC_INDEX)
+
 def capture_video_and_audio(video_path, duration):
     """Captures video and audio simultaneously"""
     audio_text = [None]  # Use list to store result from thread
     
-    def listen_thread():
-        audio_text[0] = listen_to_mic()
-    
     # Start audio capture in separate thread
-    audio_thread = threading.Thread(target=listen_thread)
+    recognizer = sr.Recognizer()
+    audio_thread = threading.Thread(target=listen_thread, args=(audio_text, recognizer, MIC_INDEX))
     audio_thread.start()
     
     # Capture video in main thread
@@ -77,11 +113,11 @@ def extract_frames(video_path, output_folder):
     cap.release()
     return images
 
-def get_ai_response(pil_images, mode):
+def get_ai_response(pil_images, mode, text_input=None):
     print(f"⚡ Analyzing in mode: {mode}...")
 
     if mode == "1":
-        prompt = (
+        base_prompt = (
             "Describe the scene immediately without any greetings or introductory filler. "
             "First, briefly mention the setting and lighting. Also capture the emotion of the environment. "
             "Next, describe the person closest to the camera: their outfit and specifically what they are holding or showing. "
@@ -89,19 +125,34 @@ def get_ai_response(pil_images, mode):
             "Do not say 'Welcome' and do not ask questions. Just provide the visual description in a natural, conversational flow. "
         )
 
+        if text_input:
+            prompt = f"{text_input} {base_prompt}"
+        else:
+            prompt = base_prompt
+
     elif mode == "2":
-        prompt = (
+        base_prompt = (
             "You are a Blind Sonar assistant. The user is holding an object. "
             "Identify the specific object in the center of the frame or closest to the camera."
             "Describe its color, text (if any), and what it is. Be extremely brief (1 sentence)."
         )
 
+        if text_input:
+            prompt = f"{text_input} {base_prompt}"
+        else:
+            prompt = base_prompt
+
     elif mode == "3":
-        prompt = (
+        base_prompt = (
             "You are a Blind Sonar assistant. The user asked: 'Who is in front of me?'. "
             "Describe the person closest to the camera. Mention their gender, clothing color, "
             "and what they are doing. Also capture the emotion of the person. Ignore the background crowd."
         )
+
+        if text_input:
+            prompt = f"{text_input} {base_prompt}"
+        else:
+            prompt = base_prompt
 
     try:
         response = CLIENT.models.generate_content(
@@ -146,11 +197,11 @@ def main():
             continue
 
         # capture_live_video(video_file, duration=RECORD_SECONDS)
-        capture_video_and_audio(video_file, RECORD_SECONDS)
+        (_, text_input) = capture_video_and_audio(video_file, RECORD_SECONDS)
         images = extract_frames(video_file, "data_cache")
         if not images: continue
 
-        answer = get_ai_response(images, key)
+        answer = get_ai_response(images, key, text_input)
         asyncio.run(speak(answer))
 
 if __name__ == "__main__":
