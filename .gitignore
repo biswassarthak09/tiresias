@@ -7,5 +7,9 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.env
 media/
+inputs/ 
+recordings/
+outputs/
+data_cache/
